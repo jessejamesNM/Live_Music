@@ -20,30 +20,24 @@
 // - Manejo de errores para mostrar mensajes relevantes en caso de campos vacíos o
 //   correo/contraseña no válidos.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:live_music/data/model/global_variables.dart';
 import 'package:live_music/data/provider_logics/user/user_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../../../../data/repositories/providers_repositories/user_repository.dart';
 import '../../../../../../resources/colors.dart';
 import 'package:live_music/presentation/resources/strings.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:provider/provider.dart';
 
-class RegisterArtistMailScreen extends StatefulWidget {
+class RegisterArtistMailScreenNoModify extends StatefulWidget {
   @override
   _RegisterArtistMailScreenState createState() =>
       _RegisterArtistMailScreenState();
 }
 
-class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
+class _RegisterArtistMailScreenState
+    extends State<RegisterArtistMailScreenNoModify> {
   bool isLoading = false;
   String errorMessage = "";
   Map<String, bool> passwordValidation = {};
@@ -123,60 +117,18 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
       final sharedPreferences = await SharedPreferences.getInstance();
       final userRepository = UserRepository(sharedPreferences);
 
-      // Obtener el tipo de usuario del provider
-      final userType = context.read<UserProvider>().userType;
+      final role = context.read<UserProvider>().userType;
 
-      // Registrar usuario
       final errorMsg = await userRepository.registerUser(
         email,
         password,
-        userType,
+        role,
         name,
         lastName,
       );
 
       if (errorMsg == null) {
-        // Obtener el usuario actual
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser != null) {
-          // Guardar información adicional en Firestore
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(currentUser.uid)
-              .set({
-                'isRegistered': true,
-                'isVerified': true,
-                'userType': userType,
-                'firstName': name,
-                'lastName': lastName,
-                'email': email,
-                'createdAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-
-          // Navegar según el tipo de usuario
-          if (context.mounted) {
-            if (userType == 'contractor') {
-              context.go(AppStrings.ageTermsScreenRoute);
-            } else if ([
-              'artist',
-              'bakery',
-              'place',
-              'decoration',
-              'furniture',
-              'entertainment',
-            ].contains(userType)) {
-              context.go(AppStrings.ageTermsScreenRoute);
-            } else {
-              // Tipo de usuario no reconocido
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tipo de usuario no reconocido'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            }
-          }
-        }
+        if (mounted) context.go(AppStrings.waitingConfirmScreenRoute);
       } else {
         setState(() => errorMessage = errorMsg);
       }

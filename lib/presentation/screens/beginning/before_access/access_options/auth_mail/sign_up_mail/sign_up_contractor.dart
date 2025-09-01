@@ -1,33 +1,14 @@
-// -----------------------------------------------------------------------------
-// Fecha de creación: 22 de abril de 2025
-// Autor: KingdomOfJames
-//
-// Descripción: Esta pantalla permite el registro de un contratista, solicitando
-// nombre, apellido, correo electrónico y contraseña. Se valida que todos los
-// campos estén completos, que el correo electrónico tenga un formato válido y
-// que la contraseña cumpla con ciertos requisitos de seguridad (longitud mínima,
-// caracteres en mayúsculas y minúsculas, números y caracteres especiales).
-//
-// Recomendaciones:
-// - Asegúrate de que todos los campos sean validados antes de enviar la solicitud.
-// - Considera agregar validaciones más avanzadas para el correo electrónico (como
-//   verificar la existencia del dominio).
-// - Asegúrate de manejar posibles errores correctamente, mostrando mensajes
-//   claros al usuario.
-//
-// Características:
-// - Interfaz limpia y sencilla, con campos de texto para la entrada de datos.
-// - Validación de la contraseña en tiempo real, mostrando los requisitos cumplidos.
-// - Mensajes de error para campos vacíos, correo no válido o contraseña incorrecta.
-// - Botón de registro que realiza la acción de registro una vez validados los datos.
-// -----------------------------------------------------------------------------
-
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:live_music/presentation/resources/colors.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Importaciones de tus archivos locales
 import 'package:live_music/data/model/global_variables.dart';
 import 'package:live_music/data/repositories/providers_repositories/user_repository.dart';
-import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../../../resources/colors.dart';
+
 import 'package:live_music/presentation/resources/strings.dart';
 
 class RegisterContractorMailScreen extends StatefulWidget {
@@ -81,7 +62,9 @@ class _RegisterContractorMailScreenState
       AppStrings.passwordUppercaseReq: password.contains(RegExp(r'[A-Z]')),
       AppStrings.passwordLowercaseReq: password.contains(RegExp(r'[a-z]')),
       AppStrings.passwordNumberReq: password.contains(RegExp(r'[0-9]')),
-      AppStrings.passwordSpecialCharReq: password.contains(RegExp(r'[^a-zA-Z0-9]')),
+      AppStrings.passwordSpecialCharReq: password.contains(
+        RegExp(r'[^a-zA-Z0-9]'),
+      ),
     };
   }
 
@@ -114,18 +97,42 @@ class _RegisterContractorMailScreenState
     try {
       final sharedPreferences = await SharedPreferences.getInstance();
       final userRepository = UserRepository(sharedPreferences);
-      final role = AppStrings.contractor;
 
+      // Tipo de usuario fijo para esta pantalla
+      final userType = AppStrings.contractor;
+
+      // Registrar usuario
       final errorMsg = await userRepository.registerUser(
         email,
         password,
-        role,
+        userType,
         name,
         lastName,
       );
 
       if (errorMsg == null) {
-        if (mounted) context.go(AppStrings.waitingConfirmScreenRoute);
+        // Obtener el usuario actual
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser != null) {
+          // Guardar información adicional en Firestore
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUser.uid)
+              .set({
+                'isRegistered': true,
+                'isVerified': true,
+                'userType': userType,
+                'firstName': name,
+                'lastName': lastName,
+                'email': email,
+                'createdAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+
+          // Navegar según el tipo de usuario (siempre a ageTermsScreenRoute para contractor)
+          if (context.mounted) {
+            context.go(AppStrings.ageTermsScreenRoute);
+          }
+        }
       } else {
         setState(() => errorMessage = errorMsg);
       }
@@ -177,7 +184,8 @@ class _RegisterContractorMailScreenState
                     AppStrings.signUp,
                     style: TextStyle(
                       color:
-                          colorScheme[AppStrings.secondaryColor] ?? Colors.black,
+                          colorScheme[AppStrings.secondaryColor] ??
+                          Colors.black,
                       fontSize: titleFontSize,
                       fontWeight: FontWeight.bold,
                     ),
@@ -337,7 +345,8 @@ class _RegisterContractorMailScreenState
           horizontal: horizontalPadding,
         ),
         hintStyle: TextStyle(
-          color: colorScheme[AppStrings.secondaryColor]?.withOpacity(0.6) ??
+          color:
+              colorScheme[AppStrings.secondaryColor]?.withOpacity(0.6) ??
               Colors.grey,
           fontSize: fontSize,
         ),
@@ -388,7 +397,8 @@ class _RegisterContractorMailScreenState
           horizontal: horizontalPadding,
         ),
         hintStyle: TextStyle(
-          color: colorScheme[AppStrings.secondaryColor]?.withOpacity(0.6) ??
+          color:
+              colorScheme[AppStrings.secondaryColor]?.withOpacity(0.6) ??
               Colors.grey,
           fontSize: fontSize,
         ),
@@ -421,25 +431,29 @@ class _RegisterContractorMailScreenState
       child: ElevatedButton(
         onPressed: isLoading ? null : _handleRegistration,
         style: ElevatedButton.styleFrom(
-          backgroundColor: colorScheme[AppStrings.essentialColor] ?? Colors.blue,
+          backgroundColor:
+              colorScheme[AppStrings.essentialColor] ?? Colors.blue,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
           ),
         ),
-        child: isLoading
-            ? SizedBox(
-                width: buttonHeight * 0.6,
-                height: buttonHeight * 0.6,
-                child: CircularProgressIndicator(color: Colors.white),
-              )
-            : FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  AppStrings.signUp,
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
+        child:
+            isLoading
+                ? SizedBox(
+                  width: buttonHeight * 0.6,
+                  height: buttonHeight * 0.6,
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
+                : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    AppStrings.signUp,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
       ),
     );
   }
@@ -451,37 +465,41 @@ class _RegisterContractorMailScreenState
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: passwordValidation.entries.map((entry) {
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: iconSize * 0.2),
-          child: Row(
-            children: [
-              Icon(
-                entry.value ? Icons.check : Icons.close,
-                color: entry.value
-                    ? colorScheme[AppStrings.correctGreen] ?? Colors.green
-                    : colorScheme[AppStrings.redColor] ?? Colors.red,
-                size: iconSize,
-              ),
-              SizedBox(width: iconSize * 0.5),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    entry.key,
-                    style: TextStyle(
-                      color:
-                          colorScheme[AppStrings.secondaryColor] ?? Colors.black,
-                      fontSize: fontSize,
+      children:
+          passwordValidation.entries.map((entry) {
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: iconSize * 0.2),
+              child: Row(
+                children: [
+                  Icon(
+                    entry.value ? Icons.check : Icons.close,
+                    color:
+                        entry.value
+                            ? colorScheme[AppStrings.correctGreen] ??
+                                Colors.green
+                            : colorScheme[AppStrings.redColor] ?? Colors.red,
+                    size: iconSize,
+                  ),
+                  SizedBox(width: iconSize * 0.5),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        entry.key,
+                        style: TextStyle(
+                          color:
+                              colorScheme[AppStrings.secondaryColor] ??
+                              Colors.black,
+                          fontSize: fontSize,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        );
-      }).toList(),
+            );
+          }).toList(),
     );
   }
 }

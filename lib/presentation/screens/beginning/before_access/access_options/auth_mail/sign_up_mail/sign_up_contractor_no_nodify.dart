@@ -1,49 +1,43 @@
-// Fecha de creación: 2025-04-22
+// -----------------------------------------------------------------------------
+// Fecha de creación: 22 de abril de 2025
 // Autor: KingdomOfJames
 //
-// Descripción:
-// Pantalla de registro para artistas mediante correo electrónico y contraseña.
-// La pantalla permite ingresar el nombre, apellido, correo electrónico y contraseña
-// con validaciones en tiempo real para la contraseña y el correo electrónico.
-// El botón de registro se habilita solo cuando todos los campos son válidos.
+// Descripción: Esta pantalla permite el registro de un contratista, solicitando
+// nombre, apellido, correo electrónico y contraseña. Se valida que todos los
+// campos estén completos, que el correo electrónico tenga un formato válido y
+// que la contraseña cumpla con ciertos requisitos de seguridad (longitud mínima,
+// caracteres en mayúsculas y minúsculas, números y caracteres especiales).
 //
 // Recomendaciones:
-// - Asegurarse de que los campos de entrada de texto estén correctamente validados
-//   antes de enviar el formulario para evitar errores de registro.
-// - Considerar la posibilidad de agregar una validación más estricta para la contraseña
-//   en términos de longitud y complejidad dependiendo de las políticas de seguridad de la plataforma.
+// - Asegúrate de que todos los campos sean validados antes de enviar la solicitud.
+// - Considera agregar validaciones más avanzadas para el correo electrónico (como
+//   verificar la existencia del dominio).
+// - Asegúrate de manejar posibles errores correctamente, mostrando mensajes
+//   claros al usuario.
 //
 // Características:
-// - Validación en tiempo real de los requisitos de la contraseña (longitud, mayúsculas,
-//   minúsculas, números y caracteres especiales).
-// - Uso de un indicador de carga mientras se realiza el registro.
-// - Manejo de errores para mostrar mensajes relevantes en caso de campos vacíos o
-//   correo/contraseña no válidos.
+// - Interfaz limpia y sencilla, con campos de texto para la entrada de datos.
+// - Validación de la contraseña en tiempo real, mostrando los requisitos cumplidos.
+// - Mensajes de error para campos vacíos, correo no válido o contraseña incorrecta.
+// - Botón de registro que realiza la acción de registro una vez validados los datos.
+// -----------------------------------------------------------------------------
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:live_music/data/model/global_variables.dart';
-import 'package:live_music/data/provider_logics/user/user_provider.dart';
+import 'package:live_music/data/repositories/providers_repositories/user_repository.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../../../../data/repositories/providers_repositories/user_repository.dart';
 import '../../../../../../resources/colors.dart';
 import 'package:live_music/presentation/resources/strings.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:provider/provider.dart';
 
-class RegisterArtistMailScreen extends StatefulWidget {
+class RegisterContractorMailScreen extends StatefulWidget {
   @override
-  _RegisterArtistMailScreenState createState() =>
-      _RegisterArtistMailScreenState();
+  _RegisterContractorMailScreenState createState() =>
+      _RegisterContractorMailScreenState();
 }
 
-class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
+class _RegisterContractorMailScreenState
+    extends State<RegisterContractorMailScreen> {
   bool isLoading = false;
   String errorMessage = "";
   Map<String, bool> passwordValidation = {};
@@ -122,65 +116,23 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
     try {
       final sharedPreferences = await SharedPreferences.getInstance();
       final userRepository = UserRepository(sharedPreferences);
+      final role = AppStrings.contractor;
 
-      // Obtener el tipo de usuario del provider
-      final userType = context.read<UserProvider>().userType;
-
-      // Registrar usuario
       final errorMsg = await userRepository.registerUser(
         email,
         password,
-        userType,
+        role,
         name,
         lastName,
       );
 
       if (errorMsg == null) {
-        // Obtener el usuario actual
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser != null) {
-          // Guardar información adicional en Firestore
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(currentUser.uid)
-              .set({
-                'isRegistered': true,
-                'isVerified': true,
-                'userType': userType,
-                'firstName': name,
-                'lastName': lastName,
-                'email': email,
-                'createdAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-
-          // Navegar según el tipo de usuario
-          if (context.mounted) {
-            if (userType == 'contractor') {
-              context.go(AppStrings.ageTermsScreenRoute);
-            } else if ([
-              'artist',
-              'bakery',
-              'place',
-              'decoration',
-              'furniture',
-              'entertainment',
-            ].contains(userType)) {
-              context.go(AppStrings.ageTermsScreenRoute);
-            } else {
-              // Tipo de usuario no reconocido
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tipo de usuario no reconocido'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            }
-          }
-        }
+        if (mounted) context.go(AppStrings.waitingConfirmScreenRoute);
       } else {
         setState(() => errorMessage = errorMsg);
       }
     } catch (e) {
+      debugPrint('Error en registro: $e');
       setState(() => errorMessage = AppStrings.unexpectedError);
     } finally {
       if (mounted) setState(() => isLoading = false);
@@ -191,7 +143,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
   Widget build(BuildContext context) {
     final colorScheme = ColorPalette.getPalette(context);
 
-    // Medidas adaptativas
+    // Medidas adaptativas según pantalla
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
@@ -214,7 +166,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: screenHeight * 0.03),
+              SizedBox(height: verticalSpacing),
               IconButton(
                 icon: Icon(Icons.arrow_back, size: iconSize),
                 color: colorScheme[AppStrings.secondaryColor] ?? Colors.black,
@@ -236,6 +188,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
                 ),
               ),
               SizedBox(height: verticalSpacing * 1.5),
+
               _buildFormFields(
                 colorScheme: colorScheme,
                 borderRadius: borderRadius,
@@ -243,13 +196,17 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
                 horizontalPadding: textFieldHorizontalPadding,
                 fontSize: textFontSize,
                 passwordIconSize: passwordIconSize,
+                verticalSpacing: verticalSpacing,
               ),
+
               SizedBox(height: verticalSpacing),
+
               _buildRegisterButton(
                 colorScheme: colorScheme,
                 buttonHeight: buttonHeight,
                 borderRadius: borderRadius,
               ),
+
               if (errorMessage.isNotEmpty)
                 Padding(
                   padding: EdgeInsets.only(top: verticalSpacing / 2),
@@ -264,7 +221,9 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
                     ),
                   ),
                 ),
+
               SizedBox(height: verticalSpacing),
+
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
@@ -296,6 +255,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
     required double horizontalPadding,
     required double fontSize,
     required double passwordIconSize,
+    required double verticalSpacing,
   }) {
     return Column(
       children: [
@@ -308,7 +268,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
           horizontalPadding: horizontalPadding,
           fontSize: fontSize,
         ),
-        SizedBox(height: verticalPadding),
+        SizedBox(height: verticalSpacing),
         _buildTextField(
           controller: lastNameController,
           hintText: AppStrings.lastNames,
@@ -318,7 +278,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
           horizontalPadding: horizontalPadding,
           fontSize: fontSize,
         ),
-        SizedBox(height: verticalPadding),
+        SizedBox(height: verticalSpacing),
         _buildTextField(
           controller: emailController,
           hintText: AppStrings.email,
@@ -328,7 +288,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
           horizontalPadding: horizontalPadding,
           fontSize: fontSize,
         ),
-        SizedBox(height: verticalPadding),
+        SizedBox(height: verticalSpacing),
         _buildPasswordTextField(
           controller: passwordController,
           hintText: AppStrings.password,
@@ -359,10 +319,6 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
         filled: true,
         fillColor: colorScheme[AppStrings.primaryColor] ?? Colors.white,
         border: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: colorScheme[AppStrings.secondaryColor] ?? Colors.grey,
-            width: 1.5,
-          ),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         enabledBorder: OutlineInputBorder(
@@ -415,10 +371,6 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
         filled: true,
         fillColor: colorScheme[AppStrings.primaryColor] ?? Colors.white,
         border: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: colorScheme[AppStrings.secondaryColor] ?? Colors.grey,
-            width: 1.5,
-          ),
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         enabledBorder: OutlineInputBorder(
@@ -491,7 +443,7 @@ class _RegisterArtistMailScreenState extends State<RegisterArtistMailScreen> {
                   fit: BoxFit.scaleDown,
                   child: Text(
                     AppStrings.signUp,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
